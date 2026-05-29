@@ -498,7 +498,7 @@ function renderPrediction(options = {}) {
   elements.reasonsList.innerHTML = [
     ["Indice Nono", `${diagnostics.selectionIndex.value}/100 : pronostic ${diagnostics.selectionIndex.label}. Cet indice mesure la force du choix, pas une garantie de gain.`],
     ["Base analysée", `${sample.length} derniers tirages FDJ sont utilisés pour préparer le pronostic.`],
-    ["Pourquoi ces numéros", `Nono retient ${diagnostics.strongest} comme numéros solides et ajoute ${diagnostics.watched} pour garder une grille variée.`],
+    ["Pourquoi ces numéros", `Nono teste des grilles complètes. Dans celle-ci, ${diagnostics.strongest} ressortent le plus, tandis que ${diagnostics.watched} complètent bien la combinaison.`],
   ]
     .map(([title, body]) => `<div class="reason"><strong>${title}</strong>${body}</div>`)
     .join("");
