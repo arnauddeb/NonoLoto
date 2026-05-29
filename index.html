@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Mini webapp mobile pour analyser l'historique FDJ Loto." />
+    <title>Nono Loto</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="manifest" href="manifest.webmanifest" />
+  </head>
+  <body>
+    <header class="app-header">
+      <p class="eyebrow">Historique FDJ analysé automatiquement</p>
+      <h1>Nono Loto</h1>
+    </header>
+
+    <main>
+      <div class="app-shell">
+        <div class="main-column">
+          <section id="predictorCard" class="predictor" aria-label="Prédiction Loto Nono">
+            <div class="predictor-topline">
+              <span id="predictionTitle">Pronostic principal</span>
+            </div>
+
+            <div class="prediction-row">
+              <div id="mainNumbers" class="balls" aria-live="polite" aria-label="Numéros proposés"></div>
+              <div class="chance-block">
+                <span>Chance</span>
+                <strong id="chanceNumber" class="chance-ball">-</strong>
+              </div>
+            </div>
+
+            <p id="predictionSummary" class="prediction-summary">
+              Préparation de la proposition...
+            </p>
+            <p id="drawCount" class="data-line"></p>
+
+            <div class="button-row">
+              <button id="generateButton" class="primary-button" type="button">
+                R&eacute;v&eacute;ler le pronostic
+              </button>
+            </div>
+          </section>
+
+          <section class="why-panel">
+            <h2>Pourquoi cette grille ?</h2>
+            <div id="reasonsList" class="reason-list"></div>
+          </section>
+        </div>
+
+        <aside class="side-column" aria-label="Réglages et historique">
+          <section id="optionsPanel" class="options-panel" aria-label="Réglages">
+            <div class="section-title">
+              <h2>Réglages</h2>
+              <span>Modifiables à tout moment</span>
+            </div>
+
+            <div class="option-grid">
+              <label>
+                Tirages analysés
+                <select id="windowSelect">
+                  <option value="50">Très récent</option>
+                  <option value="100" selected>Base conseillée</option>
+                  <option value="250">Plus large</option>
+                  <option value="all">Maximum</option>
+                </select>
+                <small id="windowHelp"></small>
+              </label>
+
+              <label>
+                Méthode de calcul
+                <select id="modeSelect">
+                  <option value="balanced" selected>Pronostic principal</option>
+                  <option value="hot">Numéros réguliers</option>
+                  <option value="overdue">Numéros à surveiller</option>
+                </select>
+                <small id="modeHelp"></small>
+              </label>
+            </div>
+
+            <div class="plain-help">
+              <strong>En clair :</strong>
+              <span>
+                Nono compare beaucoup de grilles, garde les meilleures, puis
+                en propose une à chaque clic. Ce n’est pas un tirage au hasard
+                pur.
+              </span>
+            </div>
+          </section>
+
+          <section class="history-panel" aria-label="Historique des derniers tirages">
+            <div class="section-title">
+              <h2>Historique</h2>
+              <span id="latestDrawDate">Chargement...</span>
+            </div>
+            <div id="historyList" class="history-list"></div>
+          </section>
+
+          <p class="notice">
+            Jeu de hasard : pronostic indicatif, gain non garanti.
+          </p>
+          <p id="databaseStatus" class="database-status"></p>
+        </aside>
+      </div>
+    </main>
+
+    <script src="fflate.js" defer></script>
+    <script src="app.js" defer></script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "Nono Loto",
+  "short_name": "NonoLoto",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f6f7fb",
+  "theme_color": "#2652ff",
+  "description": "Prédiction statistique simple des tirages Loto FDJ."
+}
