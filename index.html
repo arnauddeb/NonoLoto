@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="description" content="Mini webapp mobile pour analyser l'historique FDJ Loto." />
     <title>Nono Loto</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20260529-10" />
     <link rel="manifest" href="manifest.webmanifest" />
   </head>
   <body>
@@ -39,6 +39,23 @@
               <button id="generateButton" class="primary-button" type="button">
                 R&eacute;v&eacute;ler le pronostic
               </button>
+              <button
+                id="packButton"
+                class="secondary-button"
+                type="button"
+                aria-expanded="false"
+                aria-controls="packPanel"
+              >
+                Pack
+              </button>
+            </div>
+
+            <div id="packPanel" class="pack-panel" hidden>
+              <div class="pack-title">
+                <strong>Pack grilles</strong>
+                <span>3 variantes pour couvrir plus large</span>
+              </div>
+              <div id="packList" class="pack-list"></div>
             </div>
           </section>
 
@@ -71,6 +88,7 @@
                 Méthode de calcul
                 <select id="modeSelect">
                   <option value="balanced" selected>Pronostic principal</option>
+                  <option value="history">100% historique</option>
                   <option value="hot">Numéros réguliers</option>
                   <option value="overdue">Numéros à surveiller</option>
                 </select>
@@ -82,8 +100,7 @@
               <strong>En clair :</strong>
               <span>
                 Nono compare beaucoup de grilles, garde les meilleures, puis
-                en propose une à chaque clic. Ce n’est pas un tirage au hasard
-                pur.
+                en propose une à chaque clic. Le hasard reste majoritaire.
               </span>
             </div>
           </section>
@@ -105,6 +122,6 @@
     </main>
 
     <script src="fflate.js" defer></script>
-    <script src="app.js" defer></script>
+    <script src="app.js?v=20260529-10" defer></script>
   </body>
 </html>

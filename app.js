@@ -17,6 +17,9 @@ const elements = {
   windowHelp: document.querySelector("#windowHelp"),
   modeHelp: document.querySelector("#modeHelp"),
   generateButton: document.querySelector("#generateButton"),
+  packButton: document.querySelector("#packButton"),
+  packPanel: document.querySelector("#packPanel"),
+  packList: document.querySelector("#packList"),
   optionsPanel: document.querySelector("#optionsPanel"),
   latestDrawDate: document.querySelector("#latestDrawDate"),
   historyList: document.querySelector("#historyList"),
@@ -28,17 +31,22 @@ const BUTTON_BUSY = "Les boules tournent...";
 const modeCopy = {
   balanced: {
     label: "Pronostic principal",
-    help: "Le réglage conseillé : Nono mélange des numéros réguliers, des numéros moins vus récemment et des duos déjà observés.",
+    help: "Le réglage conseillé : hasard majoritaire, avec une légère lecture des tendances FDJ pour départager les grilles.",
     reason: "Cette grille est le meilleur score calculé sur la base analysée.",
+  },
+  history: {
+    label: "100% historique",
+    help: "Mode radical : Nono prend la grille qui obtient le meilleur score sur l'historique FDJ, sans variante aléatoire.",
+    reason: "Cette proposition correspond au meilleur score historique calculé.",
   },
   hot: {
     label: "Numéros réguliers",
-    help: "La grille donne plus d'importance aux numéros souvent présents dans les derniers tirages.",
+    help: "La grille augmente légèrement les numéros souvent présents, sans oublier que chaque tirage reste indépendant.",
     reason: "Cette proposition privilégie les numéros les plus réguliers de la période.",
   },
   overdue: {
     label: "Numéros à surveiller",
-    help: "La grille donne plus d'importance aux numéros absents depuis plusieurs tirages.",
+    help: "La grille surveille les numéros absents depuis plusieurs tirages, avec une pondération volontairement prudente.",
     reason: "Cette proposition met davantage en avant les numéros peu sortis récemment.",
   },
 };
@@ -195,6 +203,7 @@ function generate() {
   const prediction = createPrediction();
   state.current = prediction;
   renderPrediction();
+  if (!elements.packPanel.hidden) renderPack();
 }
 
 function createPrediction() {
@@ -231,6 +240,7 @@ async function revealPrediction() {
   await delay(720);
   state.current = prediction;
   renderPrediction({ animate: true });
+  if (!elements.packPanel.hidden) renderPack();
 
   await delay(980);
   elements.generateButton.disabled = false;
@@ -275,11 +285,25 @@ function buildStats(draws) {
   );
 
   const numberScores = new Map();
+  const historyScores = new Map();
   for (let number = 1; number <= 49; number += 1) {
     numberScores.set(number, scoreNumber(number, numberFrequency, recentFrequency, lastSeen, draws.length, recentWindow.length));
+    historyScores.set(number, scoreNumberHistory(number, numberFrequency, recentFrequency, lastSeen, draws.length, recentWindow.length));
   }
 
-  return { numberFrequency, recentFrequency, chanceFrequency, lastSeen, chanceLastSeen, pairFrequency, numberScores, averageSum };
+  return {
+    drawCount: draws.length,
+    recentCount: recentWindow.length,
+    numberFrequency,
+    recentFrequency,
+    chanceFrequency,
+    lastSeen,
+    chanceLastSeen,
+    pairFrequency,
+    numberScores,
+    historyScores,
+    averageSum,
+  };
 }
 
 function seededMap(max, value = 0) {
@@ -289,21 +313,56 @@ function seededMap(max, value = 0) {
 }
 
 function scoreNumber(number, frequencies, recentFrequencies, lastSeen, drawCount, recentCount) {
+  const globalRatio = bayesianRatio(frequencies.get(number), drawCount * 5, 49, 4);
+  const recentRatio = bayesianRatio(recentFrequencies.get(number), recentCount * 5, 49, 8);
+  const gap = lastSeen.get(number);
+  const timingNudge = gap <= 2 ? -3 : gap <= 12 ? 2 : gap <= 38 ? 0 : -1;
+  const score = 100 + (globalRatio - 1) * 22 + (recentRatio - 1) * 8 + timingNudge;
+
+  return Math.round(clamp(score, 88, 112));
+}
+
+function bayesianRatio(observed, totalEvents, possibleOutcomes, priorMultiplier) {
+  const uniformProbability = 1 / possibleOutcomes;
+  const priorEvents = Math.max(totalEvents * priorMultiplier, possibleOutcomes);
+  const posterior = (observed + priorEvents * uniformProbability) / (totalEvents + priorEvents);
+  return posterior / uniformProbability;
+}
+
+function scoreNumberHistory(number, frequencies, recentFrequencies, lastSeen, drawCount, recentCount) {
   const expected = (drawCount * 5) / 49;
   const recentExpected = (recentCount * 5) / 49;
-  const frequencyScore = Math.min(140, (frequencies.get(number) / expected) * 100);
-  const recentScore = Math.min(140, (recentFrequencies.get(number) / recentExpected) * 100);
+  const frequencyScore = (frequencies.get(number) / expected) * 100;
+  const recentScore = (recentFrequencies.get(number) / recentExpected) * 100;
   const gap = lastSeen.get(number);
-  const timingScore = gap <= 1 ? 64 : gap <= 8 ? 100 : gap <= 20 ? 82 : gap <= 40 ? 62 : 44;
+  const absenceScore = gap <= 1 ? 72 : gap <= 8 ? 100 : gap <= 20 ? 92 : gap <= 45 ? 78 : 62;
+  const score = frequencyScore * 0.52 + recentScore * 0.26 + absenceScore * 0.22;
 
-  return Math.round(frequencyScore * 0.46 + recentScore * 0.24 + timingScore * 0.3);
+  return Math.round(clamp(score, 60, 150));
 }
 
 function chooseNumbers(stats, mode) {
+  const choices = buildNumberChoices(stats, mode);
+  const selected = mode === "history" ? choices.combinations[0] : pickWeightedCombination(choices.elite, choices.bestScore);
+  const rank = choices.combinations.findIndex((item) => item.numbers.join("-") === selected.numbers.join("-")) + 1;
+  const selectionIndex = mode === "history" ? { value: 100, label: "historique" } : buildSelectionIndex(selected, choices.elite);
+
+  return {
+    numbers: selected.numbers,
+    diagnostics: {
+      ...explainCombination(selected.numbers, stats),
+      rank,
+      eliteCount: choices.elite.length,
+      selectionIndex,
+    },
+  };
+}
+
+function buildNumberChoices(stats, mode) {
   const candidates = Array.from({ length: 49 }, (_, index) => index + 1)
     .map((number) => ({ number, score: adjustedScore(number, [], stats, mode) }))
     .sort((a, b) => b.score - a.score || a.number - b.number)
-    .slice(0, 22)
+    .slice(0, 28)
     .map((item) => item.number);
 
   const combinations = [];
@@ -326,19 +385,15 @@ function chooseNumbers(stats, mode) {
   const elite = combinations
     .filter((item) => item.score >= bestScore * 0.92)
     .slice(0, 80);
-  const selected = weightedChoice(elite, (item) => Math.max(1, Math.pow(item.score - bestScore * 0.9, 2)));
-  const rank = combinations.findIndex((item) => item.numbers.join("-") === selected.numbers.join("-")) + 1;
-  const selectionIndex = buildSelectionIndex(selected, elite);
 
-  return {
-    numbers: selected.numbers,
-    diagnostics: {
-      ...explainCombination(selected.numbers, stats),
-      rank,
-      eliteCount: elite.length,
-      selectionIndex,
-    },
-  };
+  return { combinations, elite, bestScore };
+}
+
+function pickWeightedCombination(items, bestScore) {
+  return weightedChoice(items, (item) => {
+    const edge = Math.max(0, item.score - bestScore * 0.9);
+    return Math.max(1, edge * edge);
+  });
 }
 
 function buildSelectionIndex(selected, elite) {
@@ -353,26 +408,34 @@ function buildSelectionIndex(selected, elite) {
 }
 
 function adjustedScore(number, chosen, stats, mode) {
-  const hot = stats.numberFrequency.get(number);
   const overdue = stats.lastSeen.get(number);
-  let score = stats.numberScores.get(number);
-
-  if (mode === "hot") score += hot * 12 + stats.recentFrequency.get(number) * 18;
-  if (mode === "overdue") score += Math.min(overdue, 45) * 3;
-
+  const baseDeviation = stats.numberScores.get(number) - 100;
   const pairBoost = chosen.reduce((sum, selected) => {
     return sum + (stats.pairFrequency.get(pairKey(number, selected)) || 0);
   }, 0);
 
-  score += pairBoost * 8;
-  score += balanceBonus([...chosen, number], stats.averageSum);
+  if (mode === "history") {
+    return stats.historyScores.get(number) + pairBoost * 5.5 + balanceBonus([...chosen, number], stats.averageSum) * 1.6;
+  }
+
+  let score = 100 + baseDeviation;
+  if (mode === "hot") score += baseDeviation * 0.65;
+  if (mode === "overdue") score += overdue <= 2 ? -4 : overdue <= 14 ? 2 : overdue <= 36 ? 4 : 1;
+
+  score += pairBoost * 1.35;
+  score += balanceBonus([...chosen, number], stats.averageSum) * 0.45;
   return score;
 }
 
 function scoreCombination(numbers, stats, mode) {
   const baseScore = numbers.reduce((sum, number) => sum + adjustedScore(number, numbers.filter((n) => n !== number), stats, mode), 0);
-  const pairScore = pairTotal(numbers, stats) * 5;
-  return baseScore + pairScore + balanceBonus(numbers, stats.averageSum) * 4 + spreadBonus(numbers);
+
+  if (mode === "history") {
+    return baseScore + pairTotal(numbers, stats) * 4.5 + balanceBonus(numbers, stats.averageSum) * 2.4 + spreadBonus(numbers) * 1.1;
+  }
+
+  const pairScore = pairTotal(numbers, stats) * 1.4;
+  return baseScore + pairScore + balanceBonus(numbers, stats.averageSum) * 1.1 + spreadBonus(numbers) * 0.45;
 }
 
 function pairTotal(numbers, stats) {
@@ -423,22 +486,80 @@ function balanceBonus(numbers, averageSum) {
   let bonus = 0;
   if (odds >= 2 && odds <= 3) bonus += 18;
   if (highs >= 2 && highs <= 3) bonus += 14;
-  bonus -= Math.abs(sum - sumTarget) * 0.35;
+  bonus -= Math.abs(sum - sumTarget) * 0.22;
   return bonus;
 }
 
 function chooseChance(stats, mode) {
   const candidates = Array.from({ length: 10 }, (_, index) => {
     const chance = index + 1;
-    let score = stats.chanceFrequency.get(chance) * 12 + stats.chanceLastSeen.get(chance) * 6;
-    if (mode === "hot") score += stats.chanceFrequency.get(chance) * 20;
-    if (mode === "overdue") score += stats.chanceLastSeen.get(chance) * 10;
+    const ratio = bayesianRatio(stats.chanceFrequency.get(chance), stats.drawCount, 10, 5);
+    const gap = stats.chanceLastSeen.get(chance);
+
+    if (mode === "history") {
+      const expected = stats.drawCount / 10;
+      const frequencyScore = (stats.chanceFrequency.get(chance) / expected) * 100;
+      const absenceScore = gap <= 1 ? 72 : gap <= 8 ? 100 : gap <= 24 ? 88 : 70;
+      return { number: chance, score: frequencyScore * 0.72 + absenceScore * 0.28 };
+    }
+
+    let score = 100 + (ratio - 1) * 16;
+    if (gap <= 1) score -= 3;
+    if (gap >= 8 && gap <= 28) score += 2;
+    if (mode === "hot") score += (ratio - 1) * 8;
+    if (mode === "overdue") score += gap <= 2 ? -2 : gap <= 30 ? 3 : 0;
     return { number: chance, score };
   }).sort((a, b) => b.score - a.score || a.number - b.number);
 
-  const elite = candidates.slice(0, 4);
-  const selected = weightedChoice(elite, (item) => Math.max(1, item.score));
+  if (mode === "history") return { number: candidates[0].number, rank: 1 };
+
+  const selected = weightedChoice(candidates, (item) => {
+    const lightSignal = clamp((item.score - 100) / 100, -0.18, 0.18);
+    return 1 + lightSignal;
+  });
   return { number: selected.number, rank: candidates.findIndex((item) => item.number === selected.number) + 1 };
+}
+
+function createPack(count = 3) {
+  const sample = activeDraws();
+  const mode = elements.modeSelect.value;
+  const stats = buildStats(sample);
+  const choices = buildNumberChoices(stats, mode);
+  const pack = [];
+  const mainNumbers = state.current?.numbers || [];
+  const diversePool = choices.combinations
+    .filter((item) => item.score >= choices.bestScore * 0.84)
+    .slice(0, 600);
+
+  for (let attempt = 0; pack.length < count && attempt < 220; attempt += 1) {
+    const strictPool = diversePool.filter((item) => isPackCandidate(item.numbers, pack, mainNumbers, 2, 3));
+    const relaxedPool = diversePool.filter((item) => isPackCandidate(item.numbers, pack, mainNumbers, 3, 4));
+    const pool = strictPool.length ? strictPool : relaxedPool.length ? relaxedPool : diversePool;
+    const selected = mode === "history" ? pool[0] : pickWeightedCombination(pool, choices.bestScore);
+    const key = selected.numbers.join("-");
+
+    if (pack.some((item) => item.key === key) || key === mainNumbers.join("-")) continue;
+
+    const chanceResult = chooseChance(stats, mode);
+    pack.push({
+      key,
+      numbers: selected.numbers,
+      chance: chanceResult.number,
+      index: buildSelectionIndex(selected, choices.elite),
+    });
+  }
+
+  return pack;
+}
+
+function isPackCandidate(numbers, pack, mainNumbers, maxSharedPack, maxSharedMain) {
+  if (mainNumbers.length && commonNumbers(numbers, mainNumbers) > maxSharedMain) return false;
+  return pack.every((item) => commonNumbers(numbers, item.numbers) <= maxSharedPack);
+}
+
+function commonNumbers(a, b) {
+  const bSet = new Set(b);
+  return a.filter((number) => bSet.has(number)).length;
 }
 
 function weightedChoice(items, weightFn) {
@@ -488,18 +609,28 @@ function renderPrediction(options = {}) {
     elements.chanceNumber.style.removeProperty("--delay");
   }
   elements.predictionTitle.textContent = `Pronostic principal du ${formatFrenchDate(nextDrawDateFromLatest(state.draws[0]))}`;
-  elements.drawCount.textContent =
-    `Indice Nono : ${diagnostics.selectionIndex.value}/100 · ${sample.length} tirages`;
+  elements.drawCount.textContent = mode === "history"
+    ? `Meilleur score historique · ${sample.length} tirages`
+    : `Indice Nono : ${diagnostics.selectionIndex.value}/100 · ${sample.length} tirages`;
   elements.databaseStatus.textContent = `Base FDJ mise à jour le ${state.draws[0].date}`;
 
-  elements.predictionSummary.textContent =
-    `${modeCopy[mode].label}. Une proposition calculée à partir des tirages FDJ.`;
+  elements.predictionSummary.textContent = mode === "history"
+    ? `${modeCopy[mode].label}. Meilleur score calculé sur l'historique FDJ.`
+    : `${modeCopy[mode].label}. Hasard contrôlé, historique pondéré avec prudence.`;
 
-  elements.reasonsList.innerHTML = [
-    ["Indice Nono", `${diagnostics.selectionIndex.value}/100 : pronostic ${diagnostics.selectionIndex.label}. Cet indice mesure la force du choix, pas une garantie de gain.`],
-    ["Base analysée", `${sample.length} derniers tirages FDJ sont utilisés pour préparer le pronostic.`],
-    ["Pourquoi ces numéros", `Nono teste des grilles complètes. Dans celle-ci, ${diagnostics.strongest} ressortent le plus, tandis que ${diagnostics.watched} complètent bien la combinaison.`],
-  ]
+  const reasons = mode === "history"
+    ? [
+        ["Mode historique", "Nono prend la grille la mieux notée par l'historique FDJ, sans tirage pondéré."],
+        ["Base analysée", `${sample.length} derniers tirages FDJ sont utilisés pour ce calcul.`],
+        ["Pourquoi ces numéros", `Dans cette grille, ${diagnostics.strongest} ressortent fortement, tandis que ${diagnostics.watched} complètent la combinaison.`],
+      ]
+    : [
+        ["Indice Nono", `${diagnostics.selectionIndex.value}/100 : pronostic ${diagnostics.selectionIndex.label}. Cet indice mesure la force du choix, pas une garantie de gain.`],
+        ["Méthode", `Le hasard reste majoritaire. Les ${sample.length} derniers tirages FDJ servent seulement à départager les meilleures variantes.`],
+        ["Pourquoi ces numéros", `Nono teste des grilles complètes. Dans celle-ci, ${diagnostics.strongest} ressortent le plus, tandis que ${diagnostics.watched} complètent bien la combinaison.`],
+      ];
+
+  elements.reasonsList.innerHTML = reasons
     .map(([title, body]) => `<div class="reason"><strong>${title}</strong>${body}</div>`)
     .join("");
 
@@ -527,6 +658,28 @@ function renderHistory(sample) {
     .join("");
 }
 
+function renderPack() {
+  const pack = createPack();
+  elements.packList.innerHTML = pack
+    .map((grid, index) => {
+      const balls = grid.numbers
+        .map((number) => `<span class="pack-mini-ball">${number}</span>`)
+        .join("");
+
+      return `
+        <article class="pack-item">
+          <span class="pack-label">Grille ${index + 1}</span>
+          <div class="pack-numbers">
+            ${balls}
+            <span class="pack-mini-chance">${grid.chance}</span>
+          </div>
+          <span class="pack-index">${grid.index.value}/100</span>
+        </article>
+      `;
+    })
+    .join("");
+}
+
 function topEntries(map, count) {
   return [...map.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0]).slice(0, count);
 }
@@ -537,6 +690,13 @@ function updateOptionHelp() {
 }
 
 elements.generateButton.addEventListener("click", revealPrediction);
+elements.packButton.addEventListener("click", () => {
+  const nextState = elements.packPanel.hidden;
+  elements.packPanel.hidden = !nextState;
+  elements.packButton.setAttribute("aria-expanded", String(nextState));
+  elements.packButton.textContent = nextState ? "Masquer" : "Pack";
+  if (nextState) renderPack();
+});
 elements.windowSelect.addEventListener("change", () => {
   updateOptionHelp();
   generate();
