@@ -376,6 +376,9 @@ main {
 
 .why-panel,
 .history-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
   min-height: 0;
   overflow: hidden;
 }
@@ -591,8 +594,22 @@ small,
 .history-list {
   display: grid;
   gap: 7px;
+  align-content: start;
+  grid-auto-rows: max-content;
   min-height: 0;
-  overflow: hidden;
+  overflow-y: auto;
+  padding-right: 2px;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.history-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.history-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(102, 109, 127, 0.28);
 }
 
 .history-item {
@@ -976,6 +993,10 @@ small,
 
   .history-item:nth-child(n + 3) {
     display: none;
+  }
+
+  .history-list.is-expanded .history-item {
+    display: grid;
   }
 }
 

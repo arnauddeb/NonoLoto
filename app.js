@@ -725,6 +725,7 @@ function renderHistory(sample) {
     state.historyExpanded ? "Réduire l'historique" : "Afficher plus d'historique"
   );
   elements.historyToggleButton.hidden = sample.length <= 3;
+  elements.historyList.classList.toggle("is-expanded", state.historyExpanded);
   elements.historyList.innerHTML = sample
     .slice(0, visibleCount)
     .map((draw) => {
