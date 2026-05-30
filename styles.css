@@ -374,10 +374,17 @@ main {
   overflow: hidden;
 }
 
-.why-panel,
 .history-panel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+  gap: 10px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.why-panel {
+  display: grid;
+  align-content: start;
   gap: 10px;
   min-height: 0;
   overflow: hidden;
@@ -493,6 +500,7 @@ small,
 .reason-list {
   display: grid;
   gap: 7px;
+  align-content: start;
   min-height: 0;
 }
 
