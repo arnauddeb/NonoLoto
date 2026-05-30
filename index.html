@@ -120,7 +120,19 @@
           <section class="history-panel" aria-label="Historique des derniers tirages">
             <div class="section-title">
               <h2>Historique</h2>
-              <span id="latestDrawDate">Chargement...</span>
+              <div class="history-actions">
+                <span id="latestDrawDate">Chargement...</span>
+                <button
+                  id="historyToggleButton"
+                  class="icon-button"
+                  type="button"
+                  aria-expanded="false"
+                  aria-controls="historyList"
+                  aria-label="Afficher plus d'historique"
+                >
+                  +
+                </button>
+              </div>
             </div>
             <div id="historyList" class="history-list"></div>
           </section>

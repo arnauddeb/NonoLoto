@@ -1,6 +1,7 @@
 const state = {
   draws: [],
   current: null,
+  historyExpanded: false,
 };
 
 const elements = {
@@ -25,6 +26,7 @@ const elements = {
   packList: document.querySelector("#packList"),
   optionsPanel: document.querySelector("#optionsPanel"),
   latestDrawDate: document.querySelector("#latestDrawDate"),
+  historyToggleButton: document.querySelector("#historyToggleButton"),
   historyList: document.querySelector("#historyList"),
 };
 
@@ -715,8 +717,16 @@ function renderDrum(options = {}) {
 
 function renderHistory(sample) {
   elements.latestDrawDate.textContent = state.draws[0]?.date || "Indisponible";
+  const visibleCount = state.historyExpanded ? 8 : 3;
+  elements.historyToggleButton.textContent = state.historyExpanded ? "-" : "+";
+  elements.historyToggleButton.setAttribute("aria-expanded", String(state.historyExpanded));
+  elements.historyToggleButton.setAttribute(
+    "aria-label",
+    state.historyExpanded ? "Réduire l'historique" : "Afficher plus d'historique"
+  );
+  elements.historyToggleButton.hidden = sample.length <= 3;
   elements.historyList.innerHTML = sample
-    .slice(0, 3)
+    .slice(0, visibleCount)
     .map((draw) => {
       const balls = draw.numbers
         .map((number) => `<span class="history-mini-ball">${number}</span>`)
@@ -780,6 +790,10 @@ elements.nameForm.addEventListener("submit", (event) => {
 });
 elements.firstNameInput.addEventListener("keydown", (event) => {
   if (event.key === "Escape") toggleNameForm(false);
+});
+elements.historyToggleButton.addEventListener("click", () => {
+  state.historyExpanded = !state.historyExpanded;
+  renderHistory(activeDraws());
 });
 elements.generateButton.addEventListener("click", revealPrediction);
 elements.packButton.addEventListener("click", () => {
