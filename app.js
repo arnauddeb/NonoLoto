@@ -4,6 +4,9 @@ const state = {
 };
 
 const elements = {
+  greetingButton: document.querySelector("#greetingButton"),
+  nameForm: document.querySelector("#nameForm"),
+  firstNameInput: document.querySelector("#firstNameInput"),
   predictorCard: document.querySelector("#predictorCard"),
   mainNumbers: document.querySelector("#mainNumbers"),
   chanceNumber: document.querySelector("#chanceNumber"),
@@ -27,11 +30,13 @@ const elements = {
 
 const BUTTON_IDLE = "Révéler le pronostic";
 const BUTTON_BUSY = "Les boules tournent...";
+const IDLE_SUMMARY = "Le tirage est prêt. Clique sur révéler pour sortir les boules.";
+const FIRST_NAME_KEY = "nonoLoto.firstName";
 
 const modeCopy = {
   balanced: {
     label: "Pronostic principal",
-    help: "Le réglage conseillé : hasard majoritaire, avec une légère lecture des tendances FDJ pour départager les grilles.",
+    help: "Le réglage conseillé : Nono analyse les derniers tirages FDJ et propose une grille qui ressort bien selon ses critères.",
     reason: "Cette grille est le meilleur score calculé sur la base analysée.",
   },
   history: {
@@ -62,10 +67,38 @@ const FDJ_HISTORY_ZIP_URL =
   "https://www.sto.api.fdj.fr/anonymous/service-draw-info/v3/documentations/1a2b3c4d-9876-4562-b3fc-2c963f66afp6";
 
 async function init() {
+  renderGreeting();
   const csv = await loadDraws();
   state.draws = parseCsv(csv);
   updateOptionHelp();
-  generate();
+  renderIdlePrediction();
+}
+
+function savedFirstName() {
+  return localStorage.getItem(FIRST_NAME_KEY) || "";
+}
+
+function cleanFirstName(value) {
+  return value
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, 24);
+}
+
+function renderGreeting() {
+  const firstName = savedFirstName();
+  elements.greetingButton.textContent = firstName ? `Bonjour ${firstName}` : "Bonjour";
+  elements.firstNameInput.value = firstName;
+}
+
+function toggleNameForm(forceOpen) {
+  const isOpen = forceOpen ?? elements.nameForm.hidden;
+  elements.nameForm.hidden = !isOpen;
+  elements.greetingButton.setAttribute("aria-expanded", String(isOpen));
+  if (isOpen) {
+    elements.firstNameInput.focus();
+    elements.firstNameInput.select();
+  }
 }
 
 async function loadDraws() {
@@ -199,13 +232,6 @@ function activeDraws() {
   return size === "all" ? state.draws : state.draws.slice(0, Number(size));
 }
 
-function generate() {
-  const prediction = createPrediction();
-  state.current = prediction;
-  renderPrediction();
-  if (!elements.packPanel.hidden) renderPack();
-}
-
 function createPrediction() {
   const sample = activeDraws();
   const mode = elements.modeSelect.value;
@@ -226,18 +252,15 @@ async function revealPrediction() {
   elements.generateButton.disabled = true;
   elements.generateButton.textContent = BUTTON_BUSY;
   elements.predictorCard.classList.add("is-revealing");
-  elements.mainNumbers.classList.add("is-shuffling");
+  elements.mainNumbers.classList.add("is-drawing");
   elements.chanceNumber.parentElement.classList.add("is-shuffling");
-  elements.predictionSummary.textContent = "Les boules tournent...";
+  elements.predictionSummary.textContent = "Tirage en cours...";
   elements.chanceNumber.classList.remove("is-revealing");
   elements.chanceNumber.style.removeProperty("--delay");
-  elements.mainNumbers.innerHTML = [0, 1, 2, 3, 4]
-    .map(() => `<span class="ball is-placeholder">?</span>`)
-    .join("");
-  elements.chanceNumber.textContent = "?";
-  elements.chanceNumber.classList.add("is-placeholder");
+  elements.chanceNumber.textContent = "";
+  renderDrum({ drawing: true });
 
-  await delay(720);
+  await delay(860);
   state.current = prediction;
   renderPrediction({ animate: true });
   if (!elements.packPanel.hidden) renderPack();
@@ -591,9 +614,12 @@ function clamp(value, min, max) {
 
 function renderPrediction(options = {}) {
   const { numbers, chance, mode, sample, diagnostics } = state.current;
-  elements.mainNumbers.classList.remove("is-shuffling");
+  elements.predictorCard.classList.remove("is-waiting-drum");
+  elements.mainNumbers.classList.remove("is-shuffling", "is-drum-view", "is-drawing");
   elements.chanceNumber.parentElement.classList.remove("is-shuffling");
   elements.chanceNumber.classList.remove("is-placeholder");
+  elements.chanceNumber.classList.remove("is-teasing", "is-waiting");
+  elements.packButton.disabled = false;
   elements.mainNumbers.innerHTML = numbers
     .map((number, index) => {
       const animate = options.animate ? ` is-revealing" style="--delay:${index * 92}ms"` : `"`;
@@ -616,7 +642,7 @@ function renderPrediction(options = {}) {
 
   elements.predictionSummary.textContent = mode === "history"
     ? `${modeCopy[mode].label}. Meilleur score calculé sur l'historique FDJ.`
-    : `${modeCopy[mode].label}. Hasard contrôlé, historique pondéré avec prudence.`;
+    : `${modeCopy[mode].label}. Analyse des tendances récentes et de l'équilibre de la grille.`;
 
   const reasons = mode === "history"
     ? [
@@ -626,8 +652,8 @@ function renderPrediction(options = {}) {
       ]
     : [
         ["Indice Nono", `${diagnostics.selectionIndex.value}/100 : pronostic ${diagnostics.selectionIndex.label}. Cet indice mesure la force du choix, pas une garantie de gain.`],
-        ["Méthode", `Le hasard reste majoritaire. Les ${sample.length} derniers tirages FDJ servent seulement à départager les meilleures variantes.`],
-        ["Pourquoi ces numéros", `Nono teste des grilles complètes. Dans celle-ci, ${diagnostics.strongest} ressortent le plus, tandis que ${diagnostics.watched} complètent bien la combinaison.`],
+        ["Méthode", `Nono analyse les ${sample.length} derniers tirages FDJ, puis privilégie les combinaisons qui ressortent le mieux selon ses critères.`],
+        ["Pourquoi ces numéros", `Dans cette proposition, ${diagnostics.strongest} ressortent le plus, tandis que ${diagnostics.watched} complètent bien la combinaison.`],
       ];
 
   elements.reasonsList.innerHTML = reasons
@@ -635,6 +661,56 @@ function renderPrediction(options = {}) {
     .join("");
 
   renderHistory(sample);
+}
+
+function renderIdlePrediction() {
+  const sample = activeDraws();
+  state.current = null;
+  elements.predictorCard.classList.remove("is-revealing");
+  elements.predictorCard.classList.add("is-waiting-drum");
+  elements.mainNumbers.classList.add("is-drum-view");
+  elements.mainNumbers.classList.remove("is-shuffling", "is-drawing");
+  elements.chanceNumber.parentElement.classList.remove("is-shuffling");
+  elements.chanceNumber.classList.remove("is-revealing", "is-placeholder", "is-teasing");
+  elements.chanceNumber.classList.add("is-waiting");
+  elements.chanceNumber.style.removeProperty("--delay");
+  elements.chanceNumber.textContent = "";
+  elements.generateButton.disabled = false;
+  elements.generateButton.textContent = BUTTON_IDLE;
+  elements.packButton.disabled = true;
+  elements.packPanel.hidden = true;
+  elements.packButton.setAttribute("aria-expanded", "false");
+  elements.packButton.textContent = "Pack";
+  elements.packList.innerHTML = "";
+  elements.predictionTitle.textContent = `Pronostic principal du ${formatFrenchDate(nextDrawDateFromLatest(state.draws[0]))}`;
+  elements.drawCount.textContent = `${sample.length} tirages prêts à analyser`;
+  elements.databaseStatus.textContent = `Base FDJ mise à jour le ${state.draws[0].date}`;
+  elements.predictionSummary.textContent = IDLE_SUMMARY;
+  elements.reasonsList.innerHTML = [
+    ["Réglages actifs", `${modeCopy[elements.modeSelect.value].label} · ${windowCopy[elements.windowSelect.value]}`],
+    ["À révéler", "Le pronostic final n'est calculé et affiché qu'au moment du clic."],
+  ]
+    .map(([title, body]) => `<div class="reason"><strong>${title}</strong>${body}</div>`)
+    .join("");
+  renderHistory(sample);
+  renderDrum();
+}
+
+function renderDrum(options = {}) {
+  const balls = Array.from({ length: 18 }, (_, index) => {
+    const layer = index % 3;
+    const angle = index * 32;
+    return `<span class="drum-ball layer-${layer}" style="--angle:${angle}deg; --delay:${index * -94}ms"></span>`;
+  }).join("");
+
+  elements.mainNumbers.innerHTML = `
+    <div class="lottery-drum${options.drawing ? " is-drawing" : ""}" aria-hidden="true">
+      <div class="drum-window">
+        <div class="drum-core">${balls}</div>
+      </div>
+      <span class="drum-stand"></span>
+    </div>
+  `;
 }
 
 function renderHistory(sample) {
@@ -659,6 +735,7 @@ function renderHistory(sample) {
 }
 
 function renderPack() {
+  if (!state.current) return;
   const pack = createPack();
   elements.packList.innerHTML = pack
     .map((grid, index) => {
@@ -689,8 +766,24 @@ function updateOptionHelp() {
   elements.modeHelp.textContent = modeCopy[elements.modeSelect.value].help;
 }
 
+elements.greetingButton.addEventListener("click", () => toggleNameForm());
+elements.nameForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const firstName = cleanFirstName(elements.firstNameInput.value);
+  if (firstName) {
+    localStorage.setItem(FIRST_NAME_KEY, firstName);
+  } else {
+    localStorage.removeItem(FIRST_NAME_KEY);
+  }
+  renderGreeting();
+  toggleNameForm(false);
+});
+elements.firstNameInput.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") toggleNameForm(false);
+});
 elements.generateButton.addEventListener("click", revealPrediction);
 elements.packButton.addEventListener("click", () => {
+  if (!state.current) return;
   const nextState = elements.packPanel.hidden;
   elements.packPanel.hidden = !nextState;
   elements.packButton.setAttribute("aria-expanded", String(nextState));
@@ -699,11 +792,11 @@ elements.packButton.addEventListener("click", () => {
 });
 elements.windowSelect.addEventListener("change", () => {
   updateOptionHelp();
-  generate();
+  renderIdlePrediction();
 });
 elements.modeSelect.addEventListener("change", () => {
   updateOptionHelp();
-  generate();
+  renderIdlePrediction();
 });
 
 init().catch((error) => {

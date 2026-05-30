@@ -6,14 +6,23 @@
     <meta name="description" content="Mini webapp mobile pour analyser l'historique FDJ Loto." />
     <meta name="theme-color" content="#0047ff" />
     <title>Nono Loto</title>
-    <link rel="stylesheet" href="styles.css?v=20260529-10" />
+    <link rel="stylesheet" href="styles.css?v=20260530-1" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   </head>
   <body>
     <header class="app-header">
-      <p class="eyebrow">Historique FDJ analysé automatiquement</p>
+      <div class="greeting">
+        <button id="greetingButton" class="greeting-button" type="button" aria-expanded="false" aria-controls="nameForm">
+          Bonjour
+        </button>
+        <form id="nameForm" class="name-form" hidden>
+          <label for="firstNameInput">Prénom</label>
+          <input id="firstNameInput" type="text" name="firstName" autocomplete="given-name" maxlength="24" />
+          <button type="submit">OK</button>
+        </form>
+      </div>
       <h1>Nono Loto</h1>
     </header>
 
@@ -102,8 +111,8 @@
             <div class="plain-help">
               <strong>En clair :</strong>
               <span>
-                Nono compare beaucoup de grilles, garde les meilleures, puis
-                en propose une à chaque clic. Le hasard reste majoritaire.
+                Nono compare beaucoup de grilles, garde les mieux notées, puis
+                propose une variante pondérée à chaque clic.
               </span>
             </div>
           </section>
@@ -125,6 +134,6 @@
     </main>
 
     <script src="fflate.js" defer></script>
-    <script src="app.js?v=20260529-10" defer></script>
+    <script src="app.js?v=20260530-1" defer></script>
   </body>
 </html>
