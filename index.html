@@ -6,7 +6,7 @@
     <meta name="description" content="Mini webapp mobile pour analyser l'historique FDJ Loto." />
     <meta name="theme-color" content="#0047ff" />
     <title>Nono Loto</title>
-    <link rel="stylesheet" href="styles.css?v=20260530-1" />
+    <link rel="stylesheet" href="styles.css?v=20260530-2" />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png" />
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
@@ -58,16 +58,24 @@
                 aria-expanded="false"
                 aria-controls="packPanel"
               >
-                Pack
+                Variantes
               </button>
             </div>
 
             <div id="packPanel" class="pack-panel" hidden>
               <div class="pack-title">
-                <strong>Pack grilles</strong>
-                <span>3 variantes pour couvrir plus large</span>
+                <strong>Variantes</strong>
+                <span>3 grilles alternatives</span>
               </div>
               <div id="packList" class="pack-list"></div>
+            </div>
+
+            <div id="recentPredictionsPanel" class="recent-panel" hidden>
+              <div class="recent-title">
+                <strong>Derniers pronostics</strong>
+                <span>sur cet appareil</span>
+              </div>
+              <div id="recentPredictionsList" class="recent-list"></div>
             </div>
           </section>
 
@@ -146,6 +154,6 @@
     </main>
 
     <script src="fflate.js" defer></script>
-    <script src="app.js?v=20260530-1" defer></script>
+    <script src="app.js?v=20260530-2" defer></script>
   </body>
 </html>

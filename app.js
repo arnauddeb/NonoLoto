@@ -2,6 +2,7 @@ const state = {
   draws: [],
   current: null,
   historyExpanded: false,
+  dataSource: null,
 };
 
 const elements = {
@@ -24,6 +25,8 @@ const elements = {
   packButton: document.querySelector("#packButton"),
   packPanel: document.querySelector("#packPanel"),
   packList: document.querySelector("#packList"),
+  recentPredictionsPanel: document.querySelector("#recentPredictionsPanel"),
+  recentPredictionsList: document.querySelector("#recentPredictionsList"),
   optionsPanel: document.querySelector("#optionsPanel"),
   latestDrawDate: document.querySelector("#latestDrawDate"),
   historyToggleButton: document.querySelector("#historyToggleButton"),
@@ -34,6 +37,8 @@ const BUTTON_IDLE = "Révéler le pronostic";
 const BUTTON_BUSY = "Les boules tournent...";
 const IDLE_SUMMARY = "Le tirage est prêt. Clique sur révéler pour sortir les boules.";
 const FIRST_NAME_KEY = "nonoLoto.firstName";
+const PREDICTION_HISTORY_KEY = "nonoLoto.predictions";
+const DRAW_CACHE_KEY = "nonoLoto.drawCsvCache";
 
 const modeCopy = {
   balanced: {
@@ -70,8 +75,9 @@ const FDJ_HISTORY_ZIP_URL =
 
 async function init() {
   renderGreeting();
-  const csv = await loadDraws();
-  state.draws = parseCsv(csv);
+  const data = await loadDraws();
+  state.dataSource = data.source;
+  state.draws = parseCsv(data.csv);
   updateOptionHelp();
   renderIdlePrediction();
 }
@@ -107,10 +113,33 @@ async function loadDraws() {
   try {
     const response = await fetch(FDJ_HISTORY_ZIP_URL, { cache: "no-store" });
     if (!response.ok) throw new Error(`FDJ ${response.status}`);
-    return await unzipCsv(await response.arrayBuffer());
+    const csv = await unzipCsv(await response.arrayBuffer());
+    saveDrawCache(csv);
+    return { csv, source: "online" };
   } catch (error) {
     console.info("Lecture FDJ en ligne impossible.", error);
-    throw new Error("Impossible de charger la base FDJ en ligne. Vérifiez la connexion, puis rechargez l'app.");
+    const cached = savedDrawCache();
+    if (cached) return { csv: cached.csv, source: "cache" };
+    throw new Error("Base FDJ indisponible. Rechargez l'app quand la connexion revient.");
+  }
+}
+
+function saveDrawCache(csv) {
+  try {
+    localStorage.setItem(DRAW_CACHE_KEY, JSON.stringify({ csv, cachedAt: new Date().toISOString() }));
+  } catch (error) {
+    console.info("Sauvegarde locale de la base FDJ impossible.", error);
+  }
+}
+
+function savedDrawCache() {
+  try {
+    const raw = localStorage.getItem(DRAW_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed.csv === "string" ? parsed : null;
+  } catch {
+    return null;
   }
 }
 
@@ -264,6 +293,7 @@ async function revealPrediction() {
 
   await delay(860);
   state.current = prediction;
+  savePrediction(prediction);
   renderPrediction({ animate: true });
   if (!elements.packPanel.hidden) renderPack();
 
@@ -639,8 +669,8 @@ function renderPrediction(options = {}) {
   elements.predictionTitle.textContent = `Pronostic principal du ${formatFrenchDate(nextDrawDateFromLatest(state.draws[0]))}`;
   elements.drawCount.textContent = mode === "history"
     ? `Meilleur score historique · ${sample.length} tirages`
-    : `Indice Nono : ${diagnostics.selectionIndex.value}/100 · ${sample.length} tirages`;
-  elements.databaseStatus.textContent = `Base FDJ mise à jour le ${state.draws[0].date}`;
+    : `Score de cohérence : ${diagnostics.selectionIndex.value}/100 · ${sample.length} tirages`;
+  renderDatabaseStatus();
 
   elements.predictionSummary.textContent = mode === "history"
     ? `${modeCopy[mode].label}. Meilleur score calculé sur l'historique FDJ.`
@@ -653,7 +683,7 @@ function renderPrediction(options = {}) {
         ["Pourquoi ces numéros", `Dans cette grille, ${diagnostics.strongest} ressortent fortement, tandis que ${diagnostics.watched} complètent la combinaison.`],
       ]
     : [
-        ["Indice Nono", `${diagnostics.selectionIndex.value}/100 : pronostic ${diagnostics.selectionIndex.label}. Cet indice mesure la force du choix, pas une garantie de gain.`],
+        ["Score de cohérence", `${diagnostics.selectionIndex.value}/100 : ${diagnostics.selectionIndex.label}. Ce score décrit l'équilibre de la grille selon les critères de Nono, pas une probabilité de gain.`],
         ["Méthode", `Nono analyse les ${sample.length} derniers tirages FDJ, puis privilégie les combinaisons qui ressortent le mieux selon ses critères.`],
         ["Pourquoi ces numéros", `Dans cette proposition, ${diagnostics.strongest} ressortent le plus, tandis que ${diagnostics.watched} complètent bien la combinaison.`],
       ];
@@ -663,6 +693,7 @@ function renderPrediction(options = {}) {
     .join("");
 
   renderHistory(sample);
+  renderPredictionHistory();
 }
 
 function renderIdlePrediction() {
@@ -682,11 +713,11 @@ function renderIdlePrediction() {
   elements.packButton.disabled = true;
   elements.packPanel.hidden = true;
   elements.packButton.setAttribute("aria-expanded", "false");
-  elements.packButton.textContent = "Pack";
+  elements.packButton.textContent = "Variantes";
   elements.packList.innerHTML = "";
   elements.predictionTitle.textContent = `Pronostic principal du ${formatFrenchDate(nextDrawDateFromLatest(state.draws[0]))}`;
   elements.drawCount.textContent = `${sample.length} tirages prêts à analyser`;
-  elements.databaseStatus.textContent = `Base FDJ mise à jour le ${state.draws[0].date}`;
+  renderDatabaseStatus();
   elements.predictionSummary.textContent = IDLE_SUMMARY;
   elements.reasonsList.innerHTML = [
     ["Réglages actifs", `${modeCopy[elements.modeSelect.value].label} · ${windowCopy[elements.windowSelect.value]}`],
@@ -695,6 +726,7 @@ function renderIdlePrediction() {
     .map(([title, body]) => `<div class="reason"><strong>${title}</strong>${body}</div>`)
     .join("");
   renderHistory(sample);
+  renderPredictionHistory();
   renderDrum();
 }
 
@@ -713,6 +745,11 @@ function renderDrum(options = {}) {
       <span class="drum-stand"></span>
     </div>
   `;
+}
+
+function renderDatabaseStatus() {
+  const prefix = state.dataSource === "cache" ? "Mode secours : copie locale FDJ" : "Base FDJ";
+  elements.databaseStatus.textContent = `${prefix} mise à jour le ${state.draws[0].date}`;
 }
 
 function renderHistory(sample) {
@@ -768,6 +805,66 @@ function renderPack() {
     .join("");
 }
 
+function savedPredictions() {
+  try {
+    const raw = localStorage.getItem(PREDICTION_HISTORY_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function savePrediction(prediction) {
+  const entry = {
+    id: `${Date.now()}-${Math.round(secureRandom() * 100000)}`,
+    createdAt: new Date().toISOString(),
+    firstName: savedFirstName(),
+    nextDrawDate: formatFrenchDate(nextDrawDateFromLatest(state.draws[0])),
+    modeLabel: modeCopy[prediction.mode].label,
+    profile: prediction.mode === "history" ? "historique" : prediction.diagnostics.selectionIndex.label,
+    coherenceScore: prediction.mode === "history" ? 100 : prediction.diagnostics.selectionIndex.value,
+    numbers: prediction.numbers,
+    chance: prediction.chance,
+  };
+  const next = [entry, ...savedPredictions()].slice(0, 5);
+  localStorage.setItem(PREDICTION_HISTORY_KEY, JSON.stringify(next));
+}
+
+function renderPredictionHistory() {
+  const predictions = savedPredictions();
+  elements.recentPredictionsPanel.hidden = predictions.length === 0;
+  elements.recentPredictionsList.innerHTML = predictions
+    .slice(0, 3)
+    .map((prediction) => {
+      const balls = prediction.numbers
+        .map((number) => `<span class="recent-mini-ball">${number}</span>`)
+        .join("");
+      const name = prediction.firstName ? `${escapeHtml(prediction.firstName)} · ` : "";
+
+      return `
+        <article class="recent-item">
+          <div class="recent-meta">${name}${escapeHtml(prediction.modeLabel)} · cohérence ${prediction.coherenceScore || "-"} /100</div>
+          <div class="recent-numbers">
+            ${balls}
+            <span class="recent-mini-chance">${prediction.chance}</span>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (char) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    "\"": "&quot;",
+    "'": "&#39;",
+  })[char]);
+}
+
 function topEntries(map, count) {
   return [...map.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0]).slice(0, count);
 }
@@ -802,7 +899,7 @@ elements.packButton.addEventListener("click", () => {
   const nextState = elements.packPanel.hidden;
   elements.packPanel.hidden = !nextState;
   elements.packButton.setAttribute("aria-expanded", String(nextState));
-  elements.packButton.textContent = nextState ? "Masquer" : "Pack";
+  elements.packButton.textContent = nextState ? "Masquer" : "Variantes";
   if (nextState) renderPack();
 });
 elements.windowSelect.addEventListener("change", () => {

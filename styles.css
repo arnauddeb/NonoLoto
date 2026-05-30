@@ -496,17 +496,20 @@ small,
   min-height: 0;
 }
 
-.pack-panel {
+.pack-panel,
+.recent-panel {
   display: grid;
   gap: 8px;
   padding-top: 2px;
 }
 
-.pack-panel[hidden] {
+.pack-panel[hidden],
+.recent-panel[hidden] {
   display: none;
 }
 
-.pack-title {
+.pack-title,
+.recent-title {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -514,22 +517,26 @@ small,
   color: var(--ink);
 }
 
-.pack-title strong {
+.pack-title strong,
+.recent-title strong {
   font-size: 0.84rem;
 }
 
-.pack-title span {
+.pack-title span,
+.recent-title span {
   color: var(--muted);
   font-size: 0.7rem;
   font-weight: 650;
 }
 
-.pack-list {
+.pack-list,
+.recent-list {
   display: grid;
   gap: 6px;
 }
 
-.pack-item {
+.pack-item,
+.recent-item {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -539,15 +546,22 @@ small,
   background: var(--soft);
 }
 
+.recent-item {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
 .pack-label,
-.pack-index {
+.pack-index,
+.recent-meta {
   color: var(--muted);
   font-size: 0.68rem;
   font-weight: 850;
   white-space: nowrap;
 }
 
-.pack-numbers {
+.pack-numbers,
+.recent-numbers {
   display: flex;
   align-items: center;
   gap: 4px;
@@ -556,7 +570,9 @@ small,
 }
 
 .pack-mini-ball,
-.pack-mini-chance {
+.pack-mini-chance,
+.recent-mini-ball,
+.recent-mini-chance {
   display: inline-grid;
   place-items: center;
   width: 24px;
@@ -566,12 +582,14 @@ small,
   font-weight: 950;
 }
 
-.pack-mini-ball {
+.pack-mini-ball,
+.recent-mini-ball {
   background: #e9edff;
   color: var(--blue-dark);
 }
 
-.pack-mini-chance {
+.pack-mini-chance,
+.recent-mini-chance {
   background: #ffe6ad;
   color: #5c3900;
 }
